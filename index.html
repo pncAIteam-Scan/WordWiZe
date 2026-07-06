@@ -3,16 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WordWiZe v0.3</title>
+  <title>WordWiZe v0.4</title>
   <style>
     @font-face {
+      font-family: 'Chomage';
+      src: local('Chomage'), local('Chromage'), url('./fonts/Chomage.otf') format('opentype'), url('Chomage.otf') format('opentype');
+      font-display: swap;
+    }
+    @font-face {
       font-family: 'Chromage';
-      src: url('fonts/Chomage.otf') format('opentype');
+      src: local('Chomage'), local('Chromage'), url('./fonts/Chomage.otf') format('opentype'), url('Chomage.otf') format('opentype');
       font-display: swap;
     }
     @font-face {
       font-family: 'KG Perfect Penmanship';
-      src: url('fonts/KGPerfectPenmanship.otf') format('opentype');
+      src: local('KG Perfect Penmanship'), url('./fonts/KGPerfectPenmanship.otf') format('opentype'), url('KGPerfectPenmanship.otf') format('opentype');
       font-display: swap;
     }
     :root {
@@ -133,15 +138,19 @@
       place-items:center;
       box-shadow: 0 2px 0 rgba(15,23,42,.05);
     }
-    .cell.selected { background: var(--select); border-color: var(--brand-2); color: var(--brand-2); }
-    .cell.preview { background:#eef2ff; }
-    .cell.found { background: var(--found); border-color:#86efac; color:#047857; }
+    .cell.selected { background: var(--select) !important; border-color: var(--brand-2) !important; color: var(--brand-2) !important; }
+    .cell.preview { background:#eef2ff !important; }
+    .cell.found { background: var(--word-bg, var(--found)); border-color: var(--word-border, #86efac); color: var(--word-ink, #0f172a); }
     .cell.revealed { background:#ffedd5; border-color:#fdba74; color:#9a3412; }
     .side-panel { padding:18px; position:sticky; top:18px; }
     .side-panel h3 { margin:0 0 10px; letter-spacing:-.03em; }
     .word-bank { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
     .word-chip { border:1px solid var(--line); background:#fff; border-radius:999px; padding:7px 10px; font-weight:800; font-size:13px; color:#334155; }
-    .word-chip.found { background:var(--found); border-color:#86efac; color:#047857; text-decoration: line-through; }
+    .word-chip.found { background:var(--word-bg, var(--found)); border-color:var(--word-border, #86efac); color:var(--word-ink, #0f172a); text-decoration: line-through; }
+    .cell.word-focus { outline: 3px solid var(--focus-border, #111827); outline-offset: 2px; position: relative; z-index: 2; transform: scale(1.04); }
+    .word-chip.found { cursor: pointer; }
+    .badge-share { margin-top:10px; border:0; border-radius:999px; padding:7px 10px; background:#eef2ff; color:var(--brand); font-weight:900; font-size:12px; }
+    .badge-share:hover { box-shadow:0 6px 14px rgba(31,41,55,.12); }
     .word-chip.locked-clue { border-radius:16px; width:100%; padding:11px 12px; background:#f8fafc; color:#334155; text-decoration:none; }
     .word-chip.locked-clue b { display:block; margin-bottom:4px; color:var(--brand-2); }
     .word-chip.locked-clue span { display:block; color:#64748b; line-height:1.35; font-weight:700; }
@@ -255,7 +264,6 @@
           </div>
           <div class="grid-wrap"><div class="word-grid" id="wordGrid"></div></div>
           <div class="action-row">
-            <button class="btn warn" id="giveUpBtn">Give Up</button>
             <button class="btn ghost" id="newPuzzleBtn">New Puzzle</button>
           </div>
           <div class="result-card" id="resultCard"></div>
@@ -288,6 +296,25 @@ const LEVELS = {
 };
 const RANK_ORDER = ['Lost in the Context Window','AI Agent in Training','Context Clue Collector','Model Whisperer','AI Oracle'];
 const STORAGE_KEY = 'wordwize_v02_stats';
+const GAME_LINK = 'https://pncaiteam-scan.github.io/WordWiZe/';
+const WORD_COLORS = [
+  { bg:'#fee2e2', border:'#f87171', ink:'#7f1d1d' },
+  { bg:'#ffedd5', border:'#fb923c', ink:'#7c2d12' },
+  { bg:'#fef3c7', border:'#fbbf24', ink:'#78350f' },
+  { bg:'#dcfce7', border:'#4ade80', ink:'#14532d' },
+  { bg:'#d1fae5', border:'#34d399', ink:'#064e3b' },
+  { bg:'#ccfbf1', border:'#2dd4bf', ink:'#134e4a' },
+  { bg:'#cffafe', border:'#22d3ee', ink:'#164e63' },
+  { bg:'#dbeafe', border:'#60a5fa', ink:'#1e3a8a' },
+  { bg:'#e0e7ff', border:'#818cf8', ink:'#312e81' },
+  { bg:'#ede9fe', border:'#a78bfa', ink:'#4c1d95' },
+  { bg:'#f3e8ff', border:'#c084fc', ink:'#581c87' },
+  { bg:'#fae8ff', border:'#e879f9', ink:'#701a75' },
+  { bg:'#fce7f3', border:'#f472b6', ink:'#831843' },
+  { bg:'#ffe4e6', border:'#fb7185', ink:'#881337' },
+  { bg:'#e2e8f0', border:'#94a3b8', ink:'#0f172a' },
+  { bg:'#ecfccb', border:'#a3e635', ink:'#365314' }
+];
 const BADGES = [
   { id:'first-find', emoji:'🔎', name:'First Find', desc:'Find your first hidden word.', check:s=>s.totalWordsFound>=1 },
   { id:'first-finish', emoji:'✅', name:'First Finish', desc:'Complete your first WordWiZe puzzle.', check:s=>s.completed>=1 },
@@ -297,7 +324,11 @@ const BADGES = [
   { id:'mystery-solver', emoji:'🔐', name:'Mystery Solver', desc:'Find a locked Expert word from its definition clue.', check:s=>(s.lockedWordsFound||0)>=1 },
   { id:'oracle', emoji:'🔮', name:'AI Oracle', desc:'Earn the AI Oracle rank.', check:s=>s.bestRank==='AI Oracle' },
   { id:'five-boards', emoji:'5️⃣', name:'Five Boards Deep', desc:'Complete five puzzles.', check:s=>s.completed>=5 },
-  { id:'word-collector', emoji:'📚', name:'Word Collector', desc:'Find 50 total words.', check:s=>s.totalWordsFound>=50 }
+  { id:'word-collector', emoji:'📚', name:'Word Collector', desc:'Find 50 total words.', check:s=>s.totalWordsFound>=50 },
+  { id:'summer-heatwave-hunter', emoji:'☀️', name:'Heatwave Hunter', desc:'You handled the hottest category without breaking a sweat.', check:s=>(s.completedByCategory&&s.completedByCategory.Summer||0)>=1 },
+  { id:'mocktail-bubble-boss', emoji:'🫧', name:'Bubble Boss', desc:'You found every refreshing word and kept it fully zero-proof.', check:s=>(s.completedByCategory&&s.completedByCategory.Mocktail||0)>=1 },
+  { id:'movie-box-office-brain', emoji:'🎬', name:'Box Office Brain', desc:'You gave a blockbuster performance in the word search grid.', check:s=>(s.completedByCategory&&s.completedByCategory.Movie||0)>=1 },
+  { id:'travel-passport-stamped', emoji:'🧳', name:'Passport Stamped', desc:'You searched the world, found the words, and earned the stamp.', check:s=>(s.completedByCategory&&s.completedByCategory.Travel||0)>=1 }
 ];
 
 let state = {
@@ -326,6 +357,7 @@ function defaultStats() {
     totalWordsFound:0,
     lockedWordsFound:0,
     completedByLevel:{ warm:0, brain:0, expert:0 },
+    completedByCategory:{ Summer:0, Mocktail:0, Movie:0, Travel:0 },
     badgesUnlocked:[],
     lastPlayedDate:'',
     currentStreak:0,
@@ -333,8 +365,18 @@ function defaultStats() {
   };
 }
 function loadStats() {
-  try { return {...defaultStats(), ...(JSON.parse(localStorage.getItem(STORAGE_KEY)) || {})}; }
-  catch { return defaultStats(); }
+  const defaults = defaultStats();
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    return {
+      ...defaults,
+      ...parsed,
+      completedByLevel: { ...defaults.completedByLevel, ...(parsed.completedByLevel || {}) },
+      completedByCategory: { ...defaults.completedByCategory, ...(parsed.completedByCategory || {}) },
+      badgesUnlocked: Array.isArray(parsed.badgesUnlocked) ? parsed.badgesUnlocked : []
+    };
+  }
+  catch { return defaults; }
 }
 function saveStats(stats) { localStorage.setItem(STORAGE_KEY, JSON.stringify(stats)); renderMiniStats(); }
 let stats = loadStats();
@@ -377,7 +419,7 @@ function pickWords(level, categoryMode) {
     if (pickedCat.length >= level.categoryTerms) break;
   }
   if (pickedAI.length < level.aiTerms || pickedCat.length < level.categoryTerms) throw new Error('Not enough words fit this grid.');
-  const words = shuffle([...pickedAI, ...pickedCat]).map((w, i) => ({...w, gameId: `${w.id}-${i}`, found:false, cells:[], lockedTerm:false}));
+  const words = shuffle([...pickedAI, ...pickedCat]).map((w, i) => ({...w, gameId: `${w.id}-${i}`, found:false, cells:[], lockedTerm:false, colorIndex:i % WORD_COLORS.length}));
   if (level.lockedAiTerms) {
     const lockedIds = new Set(shuffle(words.filter(w => w.category === 'AI Words')).slice(0, level.lockedAiTerms).map(w => w.gameId));
     for (const word of words) word.lockedTerm = lockedIds.has(word.gameId);
@@ -420,7 +462,7 @@ function buildPuzzle(level, categoryMode) {
     for (const word of sorted) { if (!placeWord(grid, word, level.directions)) { ok=false; break; } }
     if (!ok) continue;
     for(let r=0;r<level.size;r++) for(let c=0;c<level.size;c++) if(!grid[r][c]) grid[r][c] = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[randInt(26)];
-    return { level, words, grid };
+    return { level, words, grid, categoryMode };
   }
   throw new Error('Could not build a fair board. Try another category or difficulty.');
 }
@@ -503,15 +545,54 @@ function renderGrid() {
   gridEl.querySelectorAll('.cell').forEach(cell => cell.addEventListener('click', onCellClick));
   applyCellStates();
 }
-function applyCellStates() {
+function getWordColor(word) {
+  return WORD_COLORS[word.colorIndex % WORD_COLORS.length];
+}
+function cellBackground(colors) {
+  if (colors.length === 1) return colors[0].bg;
+  if (colors.length === 2) return `linear-gradient(135deg, ${colors[0].bg} 0 50%, ${colors[1].bg} 50% 100%)`;
+  const step = 100 / colors.length;
+  return `conic-gradient(${colors.map((c,i)=>`${c.bg} ${i*step}% ${(i+1)*step}%`).join(', ')})`;
+}
+function paintFoundCells() {
   if (!state.current) return;
-  for (const w of state.current.words) {
-    if (w.found) {
-      for (const [r,c] of w.cells) { const cell=document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`); if (cell) cell.classList.add('found'); }
-    } else if (state.finished) {
-      for (const [r,c] of w.cells) { const cell=document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`); if (cell) cell.classList.add('revealed'); }
+  document.querySelectorAll('.cell').forEach(cell => {
+    cell.classList.remove('found','word-focus');
+    cell.style.removeProperty('--word-bg');
+    cell.style.removeProperty('--word-border');
+    cell.style.removeProperty('--word-ink');
+    cell.style.removeProperty('--focus-border');
+    cell.removeAttribute('title');
+  });
+  const cellMap = new Map();
+  for (const word of state.current.words.filter(w=>w.found)) {
+    for (const [r,c] of word.cells) {
+      const key = `${r},${c}`;
+      if (!cellMap.has(key)) cellMap.set(key, []);
+      cellMap.get(key).push(word);
     }
   }
+  for (const [key, words] of cellMap.entries()) {
+    const [r,c] = key.split(',');
+    const cell = document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
+    if (!cell) continue;
+    const colors = words.map(getWordColor);
+    const last = colors[colors.length - 1];
+    cell.classList.add('found');
+    cell.style.setProperty('--word-bg', cellBackground(colors));
+    cell.style.setProperty('--word-border', last.border);
+    cell.style.setProperty('--word-ink', last.ink);
+    cell.title = words.map(w=>w.term).join(' + ');
+  }
+}
+function applyCellStates() {
+  if (!state.current) return;
+  paintFoundCells();
+}
+function chipStyle(word) {
+  if (!word.found) return '';
+  const color = getWordColor(word);
+  return `style="--word-bg:${color.bg};--word-border:${color.border};--word-ink:${color.ink};"`;
 }
 function renderWordBank() {
   const bank = document.getElementById('wordBank');
@@ -520,9 +601,28 @@ function renderWordBank() {
     if (w.lockedTerm && !w.found && !state.finished) {
       return `<span class="word-chip locked-clue" data-word="${w.gameId}"><b>🔒 Locked AI term</b><span>${escapeHtml(w.definition)}</span></span>`;
     }
-    return `<span class="word-chip ${w.found?'found':''}" data-word="${w.gameId}">${escapeHtml(w.term)}</span>`;
+    return `<span class="word-chip ${w.found?'found':''}" ${chipStyle(w)} data-word="${w.gameId}">${escapeHtml(w.term)}</span>`;
   }).join('');
-}function escapeHtml(str) { return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
+  bank.querySelectorAll('.word-chip.found').forEach(chip => {
+    chip.addEventListener('mouseenter', () => focusWord(chip.dataset.word, true));
+    chip.addEventListener('mouseleave', () => focusWord(chip.dataset.word, false));
+    chip.addEventListener('click', () => { focusWord(chip.dataset.word, true); setTimeout(()=>focusWord(chip.dataset.word, false), 900); });
+  });
+}
+function focusWord(gameId, on) {
+  if (!state.current) return;
+  const word = state.current.words.find(w=>w.gameId===gameId);
+  if (!word || !word.found) return;
+  const color = getWordColor(word);
+  for (const [r,c] of word.cells) {
+    const cell = document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
+    if (!cell) continue;
+    cell.classList.toggle('word-focus', on);
+    if (on) cell.style.setProperty('--focus-border', color.border);
+    else cell.style.removeProperty('--focus-border');
+  }
+}
+function escapeHtml(str) { return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
 function onCellClick(e) {
   if (state.finished) return;
   const r = Number(e.currentTarget.dataset.r), c = Number(e.currentTarget.dataset.c);
@@ -554,7 +654,7 @@ function getPath(a,b) {
 function markFound(word, selectedPath) {
   word.found = true;
   const cellsToMark = word.cells.length ? word.cells : selectedPath;
-  for (const [r,c] of cellsToMark) { const cell = document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`); if (cell) cell.classList.add('found'); }
+  paintFoundCells();
   stats.totalWordsFound += 1;
   if (word.lockedTerm) stats.lockedWordsFound = (stats.lockedWordsFound || 0) + 1;
   saveStatsAndBadges();
@@ -590,6 +690,9 @@ function completePuzzle(gaveUp) {
   const rank = getRank(score, state.current.level);
   stats.completed += 1;
   stats.completedByLevel[state.current.level.key] = (stats.completedByLevel[state.current.level.key] || 0) + 1;
+  if (state.current.categoryMode && state.current.categoryMode !== '__MIX__') {
+    stats.completedByCategory[state.current.categoryMode] = (stats.completedByCategory[state.current.categoryMode] || 0) + 1;
+  }
   if (score > stats.bestScore) stats.bestScore = score;
   if (!stats.fastestSec || state.elapsedSec < stats.fastestSec) stats.fastestSec = state.elapsedSec;
   stats.cleanSolves += 1;
@@ -597,11 +700,7 @@ function completePuzzle(gaveUp) {
   updateStreakOnCompletion(stats);
   saveStatsAndBadges();
   renderWordBank();
-  const shareText = `WordWiZe ${state.current.level.label}
-Rank: ${rank}
-Score: ${score}
-Time: ${formatTime(state.elapsedSec)}
-Found: ${state.current.words.length}/${state.current.words.length}`;
+  const shareText = `I just played WordWiZe and scored ${score}. Think you can beat me? ${GAME_LINK}`;
   document.getElementById('resultCard').innerHTML = `<h3>${rank}</h3><p>You found all ${state.current.words.length} words in ${formatTime(state.elapsedSec)}.</p><span class="rank">Score: ${score}</span><div class="action-row"><button class="btn primary" onclick="copyText(${JSON.stringify(shareText)})">Copy My Score</button><button class="btn" onclick="startGame()">Next Puzzle</button><button class="btn ghost" onclick="showScreen('titleScreen')">Return to Title</button></div>`;
   document.getElementById('resultCard').classList.add('active');
 }
@@ -645,24 +744,33 @@ function showStats() {
     <div class="stat-tile"><b>${stats.lockedWordsFound || 0}</b><small>Locked Words Found</small></div>
     <div class="stat-tile"><b>${stats.currentStreak}</b><small>Current Streak</small></div>
   </div><div class="action-row"><button class="btn primary" onclick="copyText('WordWiZe stats\nPuzzles completed: ${stats.completed}\nBest score: ${stats.bestScore}\nBest rank: ${stats.bestRank || '—'}\nFastest solve: ${stats.fastestSec ? formatTime(stats.fastestSec) : '—'}')">Copy Top Stats</button></div><p class="tiny-note">Prelim note: streaks currently use calendar days. Workday/federal-holiday streak logic can be layered in later.</p>`);
-}function showBadges() {
+}
+function badgeShareText(badgeName) {
+  return `I just played WordWiZe and unlocked the ${badgeName} badge. Think you can beat me? ${GAME_LINK}`;
+}
+function showBadges() {
   const unlocked = new Set(stats.badgesUnlocked || []);
-  const cards = BADGES.map(b => `<div class="badge ${unlocked.has(b.id)?'':'locked'}"><span class="emoji">${unlocked.has(b.id)?b.emoji:'🔒'}</span><strong>${unlocked.has(b.id)?escapeHtml(b.name):'Hidden Badge'}</strong><span>${unlocked.has(b.id)?escapeHtml(b.desc):'Keep playing to unlock this badge.'}</span></div>`).join('');
-  showModal('Badge Case', `<p><strong>${unlocked.size} / ${BADGES.length}</strong> badges unlocked.</p><div class="badge-grid">${cards}</div><div class="action-row"><button class="btn primary" onclick="copyText('WordWiZe badge progress: ${unlocked.size}/${BADGES.length} badges unlocked')">Share Badge Progress</button></div>`);
+  const cards = BADGES.map(b => {
+    const isUnlocked = unlocked.has(b.id);
+    const copyAttr = isUnlocked ? escapeHtml(JSON.stringify(badgeShareText(b.name))) : '';
+    return `<div class="badge ${isUnlocked?'':'locked'}"><span class="emoji">${isUnlocked?b.emoji:'🔒'}</span><strong>${isUnlocked?escapeHtml(b.name):'Hidden Badge'}</strong><span>${isUnlocked?escapeHtml(b.desc):'Keep playing to unlock this badge.'}</span>${isUnlocked?`<button class="badge-share" onclick="copyText(${copyAttr})">Copy Badge</button>`:''}</div>`;
+  }).join('');
+  const progressText = `I’ve unlocked ${unlocked.size} of ${BADGES.length} WordWiZe badges so far. Can you catch up? ${GAME_LINK}`;
+  showModal('Badge Case', `<p><strong>${unlocked.size} / ${BADGES.length}</strong> badges unlocked.</p><div class="badge-grid">${cards}</div><div class="action-row"><button class="btn primary" onclick="copyText(${escapeHtml(JSON.stringify(progressText))})">Share Badge Progress</button></div>`);
 }
 function showWhatsNew() {
-  showModal('What’s New in v0.3', `<p>This build keeps WordWiZe cleaner and easier to skin later.</p><ul>
-    <li>Removed the extra details from the difficulty cards.</li>
-    <li>Added custom font support for Chromage-style titles and KG Perfect Penmanship body text.</li>
-    <li>Word selection still prevents overlong terms from being picked for grids where they cannot fit.</li>
-    <li>Expert still includes 3 locked AI terms shown only as definition clues until found.</li>
-  </ul><p class="tiny-note">Good next-layer candidates: themed visual skins, leaderboard styling, workday streak logic, music controls, and category-specific editions.</p>`);
+  showModal('What’s New in v0.4', `<p>This build makes the board cleaner and sharing more polished.</p><ul>
+    <li>Found words now use individual colors, with split-color cells when words overlap.</li>
+    <li>Removed the Give Up button.</li>
+    <li>Added category badges for Summer, Mocktail, Movie, and Travel completions.</li>
+    <li>Updated score, badge, and badge-case share copy.</li>
+    <li>Expanded font loading so the custom fonts work from either a /fonts folder or the same folder as the HTML file.</li>
+  </ul><p class="tiny-note">Expert still includes 3 locked AI terms shown only as definition clues until found.</p>`);
 }
 window.addEventListener('resize', () => { if (state.current) renderGrid(); });
 document.getElementById('startBtn').addEventListener('click', startGame);
 document.getElementById('returnBtn').addEventListener('click', () => { stopTimer(); showScreen('titleScreen'); });
 document.getElementById('newPuzzleBtn').addEventListener('click', startGame);
-document.getElementById('giveUpBtn').addEventListener('click', () => { if(state.current && !state.finished) completePuzzle(true); });
 document.getElementById('statsBtn').addEventListener('click', showStats);
 document.getElementById('badgesBtn').addEventListener('click', showBadges);
 document.getElementById('whatsNewBtn').addEventListener('click', showWhatsNew);
