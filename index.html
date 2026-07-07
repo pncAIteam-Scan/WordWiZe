@@ -121,7 +121,19 @@
     .metric { background:#f8fafc; border:1px solid var(--line); border-radius:16px; padding:10px 12px; }
     .metric b { display:block; font-size:20px; }
     .metric span { color:var(--muted); font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:.07em; }
-    .grid-wrap { overflow:auto; padding:10px; border-radius:20px; background:#f8fafc; border:1px solid var(--line); }
+    .grid-wrap {
+      overflow:auto;
+      padding:10px;
+      border-radius:20px;
+      border:1px solid var(--line);
+      background-color:#f8fafc;
+      background-image:
+        linear-gradient(rgba(248,250,252,.72), rgba(248,250,252,.72)),
+        var(--board-bg-image, none);
+      background-size: cover, cover;
+      background-position: center, center;
+      background-repeat: no-repeat, no-repeat;
+    }
     .word-grid {
       display:grid;
       gap:4px;
@@ -277,7 +289,7 @@
             <div class="metric"><b id="foundCount">0/0</b><span>Found</span></div>
             <div class="metric"><b id="scorePreview">0</b><span>Live score</span></div>
           </div>
-          <div class="grid-wrap"><div class="word-grid" id="wordGrid"></div></div>
+          <div class="grid-wrap" id="gridWrap"><div class="word-grid" id="wordGrid"></div></div>
           <div class="action-row">
             <button class="btn ghost" id="newPuzzleBtn">New Puzzle</button>
           </div>
@@ -330,6 +342,12 @@ const WORD_COLORS = [
   { bg:'#e2e8f0', border:'#94a3b8', ink:'#0f172a' },
   { bg:'#ecfccb', border:'#a3e635', ink:'#365314' }
 ];
+const BOARD_BACKGROUNDS = {
+  Summer: ['./board backgrounds/summer-1.png', './board backgrounds/summer-2.png'],
+  Mocktail: ['./board backgrounds/mocktail-1.png', './board backgrounds/mocktail-2.png'],
+  Movie: ['./board backgrounds/movie-1.png', './board backgrounds/movie-2.png'],
+  Travel: ['./board backgrounds/travel-1.png', './board backgrounds/travel-2.png']
+};
 const BADGES = [
   { id:'first-find', emoji:'🔎', name:'First Find', desc:'Find your first hidden word.', check:s=>s.totalWordsFound>=1 },
   { id:'first-finish', emoji:'✅', name:'First Finish', desc:'Complete your first WordWiZe puzzle.', check:s=>s.completed>=1 },
@@ -547,10 +565,27 @@ function startTimer() {
 }
 function stopTimer() { clearInterval(state.timerId); state.timerId = null; }
 
+function cssUrl(path) {
+  return `url("${encodeURI(path).replace(/"/g, '%22')}")`;
+}
+function chooseBoardBackground(categoryMode) {
+  const pool = categoryMode === '__MIX__'
+    ? Object.values(BOARD_BACKGROUNDS).flat()
+    : (BOARD_BACKGROUNDS[categoryMode] || []);
+  return pool.length ? pool[randInt(pool.length)] : '';
+}
+function applyBoardBackground(path) {
+  const wrap = document.getElementById('gridWrap');
+  if (!wrap) return;
+  if (path) wrap.style.setProperty('--board-bg-image', cssUrl(path));
+  else wrap.style.removeProperty('--board-bg-image');
+}
+
 function startGame() {
   const level = LEVELS[state.selectedLevel];
   try {
     state.current = buildPuzzle(level, state.categoryMode);
+    state.current.boardBackground = chooseBoardBackground(state.categoryMode);
   } catch (err) {
     toast('Could not build puzzle', err.message);
     return;
@@ -566,6 +601,7 @@ function startGame() {
   renderGrid(); renderWordBank(); updateMetrics(); showScreen('gameScreen'); startTimer();
 }
 function renderGrid() {
+  applyBoardBackground(state.current && state.current.boardBackground);
   const gridEl = document.getElementById('wordGrid');
   const n = state.current.level.size;
   gridEl.style.gridTemplateColumns = `repeat(${n}, var(--cell-size, 42px))`;
