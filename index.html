@@ -161,7 +161,8 @@
     .side-panel { padding:18px; position:sticky; top:18px; }
     .side-panel h3 { margin:0 0 10px; letter-spacing:-.03em; }
     .word-bank { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
-    .word-chip { border:1px solid var(--line); background:#fff; border-radius:999px; padding:7px 10px; font-weight:800; font-size:13px; color:#334155; }
+    .word-chip { border:1px solid var(--line); background:#fff; border-radius:999px; padding:7px 10px; font-weight:800; font-size:13px; color:#334155; cursor:pointer; transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease; }
+    .word-chip:hover, .word-chip:focus-visible { transform: translateY(-1px); box-shadow:0 8px 18px rgba(31,41,55,.10); border-color:#a78bfa; outline:none; }
     .word-chip.found { background:var(--word-bg, var(--found)); border-color:var(--word-border, #86efac); color:var(--word-ink, #0f172a); text-decoration: line-through; }
     .cell.word-focus { outline: 3px solid var(--focus-border, #111827); outline-offset: 2px; position: relative; z-index: 2; transform: scale(1.04); }
     .word-chip.found { cursor: pointer; }
@@ -170,6 +171,16 @@
     .word-chip.locked-clue { border-radius:16px; width:100%; padding:11px 12px; background:#f8fafc; color:#334155; text-decoration:none; }
     .word-chip.locked-clue b { display:block; margin-bottom:4px; color:var(--brand-2); }
     .word-chip.locked-clue span { display:block; color:#64748b; line-height:1.35; font-weight:700; }
+    .word-definition-pop { display:grid; gap:12px; }
+    .word-definition-pop .word-meta { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    .word-definition-pop .category-pill,
+    .word-definition-pop .status-pill { display:inline-flex; width:max-content; align-items:center; border-radius:999px; padding:7px 11px; font-weight:900; font-size:13px; }
+    .word-definition-pop .category-pill { background:#eef2ff; color:var(--brand); border:1px solid #dbe4ff; }
+    .word-definition-pop .status-pill { background:#ecfeff; color:#0f766e; border:1px solid #a5f3fc; }
+    .word-definition-pop .definition-box { border:1px solid #dbe4ff; background:linear-gradient(135deg, rgba(124,58,237,.08), rgba(14,165,233,.08), rgba(255,183,3,.12)); border-radius:20px; padding:16px; }
+    .word-definition-pop .definition-box p { margin:0; color:var(--ink); font-size:20px; line-height:1.35; }
+    .word-definition-pop .locked-note { margin:0; color:#64748b; font-weight:800; }
+
     .definition-list { display:grid; gap:10px; max-height:330px; overflow:auto; padding-right:4px; }
     .definition-card { border:1px solid var(--line); border-radius:16px; padding:12px; background:#fff; }
     .definition-card.locked { background:#f8fafc; color:#94a3b8; }
@@ -185,6 +196,11 @@
     .result-card h3 { margin:0 0 6px; font-size:28px; letter-spacing:.01em; }
     .result-card p { margin:0 0 12px; color:var(--muted); line-height:1.45; }
     .rank { display:inline-flex; align-items:center; gap:8px; border-radius:999px; padding:8px 12px; background:#eef2ff; color:var(--brand); font-weight:900; }
+    .result-pop { display:grid; gap:14px; }
+    .result-pop .result-summary { display:grid; gap:8px; border:1px solid #dbe4ff; background:linear-gradient(135deg, rgba(124,58,237,.10), rgba(14,165,233,.10), rgba(255,183,3,.13)); border-radius:20px; padding:16px; }
+    .result-pop .result-summary p { margin:0; color:var(--ink); font-size:18px; line-height:1.35; }
+    .result-pop .score-pill { width:max-content; display:inline-flex; align-items:center; gap:8px; border-radius:999px; padding:9px 14px; background:#fff; border:1px solid #dbe4ff; color:var(--brand); font-weight:900; box-shadow:0 8px 20px rgba(76,53,201,.10); }
+    .result-pop .action-row { margin-top:2px; }
 
     .modal-backdrop { display:none; position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:50; align-items:center; justify-content:center; padding:20px; }
     .modal-backdrop.active { display:flex; }
@@ -212,7 +228,7 @@
     .toast b { display:block; margin-bottom:4px; }
     @keyframes pop { from { transform:translateY(8px); opacity:0; } to { transform:none; opacity:1; } }
 
-    /* v0.12 color refresh: bright, light, and readable */
+    /* v0.14 results modal + expanded board backgrounds */
     :root {
       --bg: #fbfcff;
       --ink: #172033;
@@ -473,7 +489,7 @@
       <div class="brand">
         <div>
           <h1><span class="word-part">Word</span><span class="wize-part">WiZe</span></h1>
-          <div class="version">v0.12</div>
+          <div class="version">v0.14</div>
         </div>
       </div>
       <div class="nav-actions">
@@ -580,10 +596,18 @@ const WORD_COLORS = [
   { bg:'#ecfccb', border:'#a3e635', ink:'#365314' }
 ];
 const BOARD_BACKGROUNDS = {
-  Summer: ['./board backgrounds/summer-1.png', './board backgrounds/summer-2.png'],
-  Mocktail: ['./board backgrounds/mocktail-1.png', './board backgrounds/mocktail-2.png'],
-  Movie: ['./board backgrounds/movie-1.png', './board backgrounds/movie-2.png'],
-  Travel: ['./board backgrounds/travel-1.png', './board backgrounds/travel-2.png']
+  Summer: [
+    './board backgrounds/summer-1.png', './board backgrounds/summer-2.png', './board backgrounds/summer-3.png', './board backgrounds/summer-4.png', './board backgrounds/summer-5.png'
+  ],
+  Mocktail: [
+    './board backgrounds/mocktail-1.png', './board backgrounds/mocktail-2.png', './board backgrounds/mocktail-3.png', './board backgrounds/mocktail-4.png', './board backgrounds/mocktail-5.png'
+  ],
+  Movie: [
+    './board backgrounds/movie-1.png', './board backgrounds/movie-2.png', './board backgrounds/movie-3.png', './board backgrounds/movie-4.png', './board backgrounds/movie-5.png'
+  ],
+  Travel: [
+    './board backgrounds/travel-1.png', './board backgrounds/travel-2.png', './board backgrounds/travel-3.png', './board backgrounds/travel-4.png', './board backgrounds/travel-5.png'
+  ]
 };
 const BADGES = [
   { id:'first-find', emoji:'🔎', name:'First Find', desc:'Find your first hidden word.', check:s=>s.totalWordsFound>=1 },
@@ -819,6 +843,7 @@ function applyBoardBackground(path) {
 }
 
 function startGame() {
+  closeModal();
   const level = LEVELS[state.selectedLevel];
   try {
     state.current = buildPuzzle(level, state.categoryMode);
@@ -832,6 +857,7 @@ function startGame() {
   state.finished = false;
   stats.totalBoardsPlayed += 1; saveStats(stats);
   document.getElementById('resultCard').classList.remove('active');
+  document.getElementById('resultCard').innerHTML = '';
   document.getElementById('gameLevelTitle').textContent = state.current.level.label;
   const catLabel = state.categoryMode === '__MIX__' ? 'Random category mix' : state.categoryMode;
   document.getElementById('gameMeta').textContent = `${level.totalTerms} terms · ${level.size}x${level.size} · ${level.aiTerms} AI / ${level.categoryTerms} category · ${catLabel}`;
@@ -904,16 +930,45 @@ function renderWordBank() {
   const bank = document.getElementById('wordBank');
   const sorted = state.current.words.slice().sort((a,b)=>a.term.localeCompare(b.term));
   bank.innerHTML = sorted.map(w => {
+    const label = (w.lockedTerm && !w.found && !state.finished) ? 'Locked AI term definition clue' : `${w.term} definition`;
     if (w.lockedTerm && !w.found && !state.finished) {
-      return `<span class="word-chip locked-clue" data-word="${w.gameId}"><b>🔒 Locked AI term</b><span>${escapeHtml(w.definition)}</span></span>`;
+      return `<span class="word-chip locked-clue" data-word="${w.gameId}" role="button" tabindex="0" aria-label="${escapeHtml(label)}"><b>🔒 Locked AI term</b><span>${escapeHtml(w.definition)}</span></span>`;
     }
-    return `<span class="word-chip ${w.found?'found':''}" ${chipStyle(w)} data-word="${w.gameId}">${escapeHtml(w.term)}</span>`;
+    return `<span class="word-chip ${w.found?'found':''}" ${chipStyle(w)} data-word="${w.gameId}" role="button" tabindex="0" aria-label="${escapeHtml(label)}">${escapeHtml(w.term)}</span>`;
   }).join('');
+  bank.querySelectorAll('.word-chip').forEach(chip => {
+    const show = () => showWordDefinition(chip.dataset.word);
+    chip.addEventListener('click', show);
+    chip.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); show(); }
+    });
+  });
   bank.querySelectorAll('.word-chip.found').forEach(chip => {
     chip.addEventListener('mouseenter', () => focusWord(chip.dataset.word, true));
     chip.addEventListener('mouseleave', () => focusWord(chip.dataset.word, false));
-    chip.addEventListener('click', () => { focusWord(chip.dataset.word, true); setTimeout(()=>focusWord(chip.dataset.word, false), 900); });
   });
+}
+function showWordDefinition(gameId) {
+  if (!state.current) return;
+  const word = state.current.words.find(w=>w.gameId===gameId);
+  if (!word) return;
+  const isLockedHidden = word.lockedTerm && !word.found && !state.finished;
+  const title = isLockedHidden ? 'Locked AI Term' : word.term;
+  const displayTerm = isLockedHidden ? '🔒 Mystery word' : escapeHtml(word.term);
+  const status = word.found ? 'Found' : (isLockedHidden ? 'Find it to reveal the word' : 'Still hiding');
+  const body = `
+    <div class="word-definition-pop">
+      <div class="word-meta">
+        <span class="category-pill">${escapeHtml(word.category)}</span>
+        <span class="status-pill">${escapeHtml(status)}</span>
+      </div>
+      <div class="definition-box">
+        <strong>${displayTerm}</strong>
+        <p>${escapeHtml(word.definition || 'No definition available yet.')}</p>
+      </div>
+      ${isLockedHidden ? '<p class="locked-note">Use the definition clue to find the hidden AI word in the grid.</p>' : ''}
+    </div>`;
+  showModal(title, body);
 }
 function focusWord(gameId, on) {
   if (!state.current) return;
@@ -988,8 +1043,7 @@ function completePuzzle(gaveUp) {
   if (gaveUp) {
     stats.givenUp += 1; saveStats(stats);
     renderWordBank();
-    document.getElementById('resultCard').innerHTML = `<h3>Better luck next time</h3><p>You revealed the remaining words, so this score will not be saved.</p><span class="rank">Result not saved</span><div class="action-row"><button class="btn primary" onclick="startGame()">Next Puzzle</button><button class="btn ghost" onclick="showScreen('titleScreen')">Return to Title</button></div>`;
-    document.getElementById('resultCard').classList.add('active');
+    showModal('Better luck next time', `<div class="result-pop"><div class="result-summary"><p>You revealed the remaining words, so this score will not be saved.</p><span class="score-pill">Result not saved</span></div><div class="action-row"><button class="btn primary" onclick="closeModal(); startGame();">Next Puzzle</button><button class="btn ghost" onclick="closeModal(); showScreen('titleScreen');">Return to Title</button></div></div>`);
     return;
   }
   const score = liveScore();
@@ -1007,8 +1061,7 @@ function completePuzzle(gaveUp) {
   saveStatsAndBadges();
   renderWordBank();
   const shareText = `I just played WordWiZe and scored ${score}. Think you can beat me? ${GAME_LINK}`;
-  document.getElementById('resultCard').innerHTML = `<h3>${rank}</h3><p>You found all ${state.current.words.length} words in ${formatTime(state.elapsedSec)}.</p><span class="rank">Score: ${score}</span><div class="action-row"><button class="btn primary" onclick="copyText(${JSON.stringify(shareText)})">Copy My Score</button><button class="btn" onclick="startGame()">Next Puzzle</button><button class="btn ghost" onclick="showScreen('titleScreen')">Return to Title</button></div>`;
-  document.getElementById('resultCard').classList.add('active');
+  showModal(rank, `<div class="result-pop"><div class="result-summary"><p>You found all ${state.current.words.length} words in ${formatTime(state.elapsedSec)}.</p><span class="score-pill">Score: ${score}</span></div><div class="action-row"><button class="btn primary" onclick="copyText(${JSON.stringify(shareText)})">Copy My Score</button><button class="btn" onclick="closeModal(); startGame();">Next Puzzle</button><button class="btn ghost" onclick="closeModal(); showScreen('titleScreen');">Return to Title</button></div></div>`);
 }
 function saveStatsAndBadges() {
   const before = new Set(stats.badgesUnlocked || []);
@@ -1037,7 +1090,7 @@ function showModal(title, bodyHtml) {
   document.getElementById('modalBody').innerHTML = bodyHtml;
   document.getElementById('modalBackdrop').classList.add('active');
 }
-function closeModal() { document.getElementById('modalBackdrop').classList.remove('active'); }
+function closeModal() { const modal = document.getElementById('modalBackdrop'); if (modal) modal.classList.remove('active'); }
 function showStats() {
   showModal('Your Stats', `<div class="mini-stats" style="grid-template-columns:repeat(3,1fr)">
     <div class="stat-tile"><b>${stats.completed}</b><small>Puzzles Completed</small></div>
