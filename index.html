@@ -79,7 +79,10 @@
     .btn.primary { background: linear-gradient(135deg, var(--brand), var(--brand-2)); color:#fff; }
     .btn.ghost { background: #fff; color: var(--ink); border:1px solid var(--line); }
     .btn.warn { background:#fff7ed; color:var(--bad); border:1px solid #fed7aa; }
+    .btn.hint { background:linear-gradient(135deg, var(--sun, #ffb703), var(--berry, #f04f9b)); color:#fff; }
     .btn:disabled { opacity: .55; cursor:not-allowed; transform:none; box-shadow:none; }
+    .expert-tool { display:none; }
+    .expert-tool.active { display:inline-flex; align-items:center; }
 
     .screen { display:none; }
     .screen.active { display:block; }
@@ -164,6 +167,8 @@
     .word-chip { border:1px solid var(--line); background:#fff; border-radius:999px; padding:7px 10px; font-weight:800; font-size:13px; color:#334155; cursor:pointer; transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease; }
     .word-chip:hover, .word-chip:focus-visible { transform: translateY(-1px); box-shadow:0 8px 18px rgba(31,41,55,.10); border-color:#a78bfa; outline:none; }
     .word-chip.found { background:var(--word-bg, var(--found)); border-color:var(--word-border, #86efac); color:var(--word-ink, #0f172a); text-decoration: line-through; }
+    .word-chip.hint-revealed { border-color:#f59e0b; background:#fffbeb; color:#92400e; }
+    .word-chip small { display:block; margin-top:2px; font-size:10px; line-height:1; color:inherit; opacity:.78; }
     .cell.word-focus { outline: 3px solid var(--focus-border, #111827); outline-offset: 2px; position: relative; z-index: 2; transform: scale(1.04); }
     .word-chip.found { cursor: pointer; }
     .badge-share { margin-top:10px; border:0; border-radius:999px; padding:7px 10px; background:#eef2ff; color:var(--brand); font-weight:900; font-size:12px; }
@@ -228,7 +233,7 @@
     .toast b { display:block; margin-bottom:4px; }
     @keyframes pop { from { transform:translateY(8px); opacity:0; } to { transform:none; opacity:1; } }
 
-    /* v0.14 results modal + expanded board backgrounds */
+    /* v0.15 expert hints and give up */
     :root {
       --bg: #fbfcff;
       --ink: #172033;
@@ -489,7 +494,7 @@
       <div class="brand">
         <div>
           <h1><span class="word-part">Word</span><span class="wize-part">WiZe</span></h1>
-          <div class="version">v0.14</div>
+          <div class="version">v0.15</div>
         </div>
       </div>
       <div class="nav-actions">
@@ -545,6 +550,8 @@
           <div class="grid-wrap" id="gridWrap"><div class="word-grid" id="wordGrid"></div></div>
           <div class="action-row">
             <button class="btn ghost" id="newPuzzleBtn">New Puzzle</button>
+            <button class="btn hint expert-tool" id="expertHintBtn" type="button">Reveal Locked Word (3 left)</button>
+            <button class="btn warn expert-tool" id="expertGiveUpBtn" type="button">Give Up</button>
           </div>
           <div class="result-card" id="resultCard"></div>
         </section>
@@ -806,7 +813,18 @@ function liveScore() {
   const level = state.current.level;
   const found = state.current.words.filter(w=>w.found).length;
   const completionRatio = found / level.totalTerms;
-  const raw = Math.round((level.baseScore * completionRatio) - (state.elapsedSec * level.timePenalty));
+  let raw = Math.round((level.baseScore * completionRatio) - (state.elapsedSec * level.timePenalty));
+
+  // Expert-only locked-word hints are intentionally expensive.
+  // One hint caps the possible outcome at Context Clue Collector territory.
+  const hintsUsed = level.key === 'expert' ? (state.current.hintsUsed || 0) : 0;
+  if (hintsUsed > 0) {
+    raw -= hintsUsed * 300;
+    const caps = { 1: .75, 2: .62, 3: .50 };
+    const cap = Math.round(level.baseScore * (caps[Math.min(hintsUsed, 3)] || .50));
+    raw = Math.min(raw, cap);
+  }
+
   return Math.max(0, raw);
 }
 function getRank(score, level) {
@@ -818,6 +836,44 @@ function getRank(score, level) {
   const found = state.current.words.filter(w=>w.found).length;
   document.getElementById('foundCount').textContent = `${found}/${state.current.words.length}`;
   document.getElementById('scorePreview').textContent = liveScore();
+  updateExpertTools();
+}
+function updateExpertTools() {
+  const hintBtn = document.getElementById('expertHintBtn');
+  const giveUpBtn = document.getElementById('expertGiveUpBtn');
+  if (!hintBtn || !giveUpBtn) return;
+  const show = !!(state.current && state.current.level.key === 'expert' && !state.finished);
+  hintBtn.classList.toggle('active', show);
+  giveUpBtn.classList.toggle('active', show);
+  if (!show) {
+    hintBtn.disabled = false;
+    return;
+  }
+  const maxHints = state.current.level.lockedAiTerms || 0;
+  const used = state.current.hintsUsed || 0;
+  const hiddenLocked = state.current.words.filter(w => w.lockedTerm && !w.found && !w.hintRevealed);
+  const left = Math.max(0, Math.min(maxHints - used, hiddenLocked.length));
+  hintBtn.textContent = left === 1 ? 'Reveal Locked Word (1 left)' : `Reveal Locked Word (${left} left)`;
+  hintBtn.disabled = left <= 0;
+}
+function useExpertHint() {
+  if (!state.current || state.current.level.key !== 'expert' || state.finished) return;
+  const hiddenLocked = state.current.words.filter(w => w.lockedTerm && !w.found && !w.hintRevealed);
+  if (!hiddenLocked.length) {
+    toast('No hints left', 'All locked words have already been revealed or found.');
+    updateExpertTools();
+    return;
+  }
+  const word = hiddenLocked[randInt(hiddenLocked.length)];
+  word.hintRevealed = true;
+  state.current.hintsUsed = (state.current.hintsUsed || 0) + 1;
+  renderWordBank();
+  updateMetrics();
+  toast('Hint used', `The locked word is ${word.term}.`);
+}
+function giveUpExpert() {
+  if (!state.current || state.current.level.key !== 'expert' || state.finished) return;
+  completePuzzle(true);
 }
 function startTimer() {
   clearInterval(state.timerId);
@@ -853,6 +909,7 @@ function startGame() {
     return;
   }
   state.current.hintsUsed = 0;
+  state.current.words.forEach(w => { w.hintRevealed = false; });
   state.selectedCell = null;
   state.finished = false;
   stats.totalBoardsPlayed += 1; saveStats(stats);
@@ -861,7 +918,7 @@ function startGame() {
   document.getElementById('gameLevelTitle').textContent = state.current.level.label;
   const catLabel = state.categoryMode === '__MIX__' ? 'Random category mix' : state.categoryMode;
   document.getElementById('gameMeta').textContent = `${level.totalTerms} terms · ${level.size}x${level.size} · ${level.aiTerms} AI / ${level.categoryTerms} category · ${catLabel}`;
-  renderGrid(); renderWordBank(); updateMetrics(); showScreen('gameScreen'); startTimer();
+  renderGrid(); renderWordBank(); updateMetrics(); updateExpertTools(); showScreen('gameScreen'); startTimer();
 }
 function renderGrid() {
   applyBoardBackground(state.current && state.current.boardBackground);
@@ -930,11 +987,14 @@ function renderWordBank() {
   const bank = document.getElementById('wordBank');
   const sorted = state.current.words.slice().sort((a,b)=>a.term.localeCompare(b.term));
   bank.innerHTML = sorted.map(w => {
-    const label = (w.lockedTerm && !w.found && !state.finished) ? 'Locked AI term definition clue' : `${w.term} definition`;
-    if (w.lockedTerm && !w.found && !state.finished) {
+    const isLockedHidden = w.lockedTerm && !w.found && !state.finished && !w.hintRevealed;
+    const label = isLockedHidden ? 'Locked AI term definition clue' : `${w.term} definition`;
+    if (isLockedHidden) {
       return `<span class="word-chip locked-clue" data-word="${w.gameId}" role="button" tabindex="0" aria-label="${escapeHtml(label)}"><b>🔒 Locked AI term</b><span>${escapeHtml(w.definition)}</span></span>`;
     }
-    return `<span class="word-chip ${w.found?'found':''}" ${chipStyle(w)} data-word="${w.gameId}" role="button" tabindex="0" aria-label="${escapeHtml(label)}">${escapeHtml(w.term)}</span>`;
+    const hintClass = w.lockedTerm && w.hintRevealed && !w.found && !state.finished ? 'hint-revealed' : '';
+    const hintNote = hintClass ? '<small>Hint used</small>' : '';
+    return `<span class="word-chip ${w.found?'found':''} ${hintClass}" ${chipStyle(w)} data-word="${w.gameId}" role="button" tabindex="0" aria-label="${escapeHtml(label)}">${escapeHtml(w.term)}${hintNote}</span>`;
   }).join('');
   bank.querySelectorAll('.word-chip').forEach(chip => {
     const show = () => showWordDefinition(chip.dataset.word);
@@ -952,10 +1012,10 @@ function showWordDefinition(gameId) {
   if (!state.current) return;
   const word = state.current.words.find(w=>w.gameId===gameId);
   if (!word) return;
-  const isLockedHidden = word.lockedTerm && !word.found && !state.finished;
+  const isLockedHidden = word.lockedTerm && !word.found && !state.finished && !word.hintRevealed;
   const title = isLockedHidden ? 'Locked AI Term' : word.term;
   const displayTerm = isLockedHidden ? '🔒 Mystery word' : escapeHtml(word.term);
-  const status = word.found ? 'Found' : (isLockedHidden ? 'Find it to reveal the word' : 'Still hiding');
+  const status = word.found ? 'Found' : (isLockedHidden ? 'Find it to reveal the word' : (word.hintRevealed ? 'Hint used' : 'Still hiding'));
   const body = `
     <div class="word-definition-pop">
       <div class="word-meta">
@@ -1038,6 +1098,7 @@ function revealMissing() {
 }
 function completePuzzle(gaveUp) {
   state.finished = true;
+  updateExpertTools();
   stopTimer();
   revealMissing();
   if (gaveUp) {
@@ -1055,13 +1116,15 @@ function completePuzzle(gaveUp) {
   }
   if (score > stats.bestScore) stats.bestScore = score;
   if (!stats.fastestSec || state.elapsedSec < stats.fastestSec) stats.fastestSec = state.elapsedSec;
-  stats.cleanSolves += 1;
+  if ((state.current.hintsUsed || 0) === 0) stats.cleanSolves += 1;
   if (!stats.bestRank || RANK_ORDER.indexOf(rank) > RANK_ORDER.indexOf(stats.bestRank)) stats.bestRank = rank;
   updateStreakOnCompletion(stats);
   saveStatsAndBadges();
   renderWordBank();
   const shareText = `I just played WordWiZe and scored ${score}. Think you can beat me? ${GAME_LINK}`;
-  showModal(rank, `<div class="result-pop"><div class="result-summary"><p>You found all ${state.current.words.length} words in ${formatTime(state.elapsedSec)}.</p><span class="score-pill">Score: ${score}</span></div><div class="action-row"><button class="btn primary" onclick="copyText(${JSON.stringify(shareText)})">Copy My Score</button><button class="btn" onclick="closeModal(); startGame();">Next Puzzle</button><button class="btn ghost" onclick="closeModal(); showScreen('titleScreen');">Return to Title</button></div></div>`);
+  const hintsUsed = state.current.hintsUsed || 0;
+  const hintNote = hintsUsed ? `<p>You used ${hintsUsed} locked-word hint${hintsUsed === 1 ? '' : 's'}, so your Expert score was capped.</p>` : '';
+  showModal(rank, `<div class="result-pop"><div class="result-summary"><p>You found all ${state.current.words.length} words in ${formatTime(state.elapsedSec)}.</p>${hintNote}<span class="score-pill">Score: ${score}</span></div><div class="action-row"><button class="btn primary" onclick="copyText(${JSON.stringify(shareText)})">Copy My Score</button><button class="btn" onclick="closeModal(); startGame();">Next Puzzle</button><button class="btn ghost" onclick="closeModal(); showScreen('titleScreen');">Return to Title</button></div></div>`);
 }
 function saveStatsAndBadges() {
   const before = new Set(stats.badgesUnlocked || []);
@@ -1138,6 +1201,8 @@ window.addEventListener('resize', () => { if (state.current) renderGrid(); });
 document.getElementById('startBtn').addEventListener('click', startGame);
 document.getElementById('returnBtn').addEventListener('click', () => { stopTimer(); showScreen('titleScreen'); });
 document.getElementById('newPuzzleBtn').addEventListener('click', startGame);
+document.getElementById('expertHintBtn').addEventListener('click', useExpertHint);
+document.getElementById('expertGiveUpBtn').addEventListener('click', giveUpExpert);
 document.getElementById('statsBtn').addEventListener('click', showStats);
 document.getElementById('badgesBtn').addEventListener('click', showBadges);
 document.getElementById('whatsNewBtn').addEventListener('click', showWhatsNew);
