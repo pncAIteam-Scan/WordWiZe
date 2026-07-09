@@ -235,7 +235,7 @@
     .toast b { display:block; margin-bottom:4px; }
     @keyframes pop { from { transform:translateY(8px); opacity:0; } to { transform:none; opacity:1; } }
 
-    /* v0.17 expert hints and give up */
+    /* v0.18 workday streak notes */
     :root {
       --bg: #fbfcff;
       --ink: #172033;
@@ -496,7 +496,7 @@
       <div class="brand">
         <div>
           <h1><span class="word-part">Word</span><span class="wize-part">WiZe</span></h1>
-          <div class="version">v0.17</div>
+          <div class="version">v0.18</div>
         </div>
       </div>
       <div class="nav-actions">
@@ -684,13 +684,28 @@ function loadStats() {
 function saveStats(stats) { localStorage.setItem(STORAGE_KEY, JSON.stringify(stats)); renderMiniStats(); }
 let stats = loadStats();
 
+function localYmd(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+function isWorkday(date) {
+  const day = date.getDay();
+  return day !== 0 && day !== 6;
+}
+function previousWorkday(date) {
+  const prev = new Date(date);
+  do { prev.setDate(prev.getDate() - 1); } while (!isWorkday(prev));
+  return prev;
+}
 function updateStreakOnCompletion(statsObj) {
   const today = new Date();
-  const ymd = today.toISOString().slice(0,10);
+  if (!isWorkday(today)) return;
+  const ymd = localYmd(today);
   if (statsObj.lastPlayedDate === ymd) return;
-  const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
-  const yday = yesterday.toISOString().slice(0,10);
-  statsObj.currentStreak = statsObj.lastPlayedDate === yday ? statsObj.currentStreak + 1 : 1;
+  const prevWorkdayYmd = localYmd(previousWorkday(today));
+  statsObj.currentStreak = statsObj.lastPlayedDate === prevWorkdayYmd ? statsObj.currentStreak + 1 : 1;
   statsObj.longestStreak = Math.max(statsObj.longestStreak, statsObj.currentStreak);
   statsObj.lastPlayedDate = ymd;
 }
@@ -1227,7 +1242,7 @@ function showStats() {
     <div class="stat-tile"><b>${stats.totalWordsFound}</b><small>Total Words Found</small></div>
     <div class="stat-tile"><b>${stats.lockedWordsFound || 0}</b><small>Locked Words Found</small></div>
     <div class="stat-tile"><b>${stats.currentStreak}</b><small>Current Streak</small></div>
-  </div><div class="action-row"><button class="btn primary" onclick="copyTopStats()">Copy Top Stats</button></div><p class="tiny-note">Note: streaks currently use calendar days. Workday/federal-holiday streak logic can be layered in later.</p>`);
+  </div><div class="action-row"><button class="btn primary" onclick="copyTopStats()">Copy Top Stats</button></div><p class="tiny-note">Stats are saved in this browser only. If you clear your cache or site data, switch browsers/devices, or use private browsing, your stats may reset. Streaks count workdays only.</p>`);
 }
 function badgeShareText(badgeName) {
   return `I just played WordWiZe and unlocked the ${badgeName} badge. Think you can beat me? ${GAME_LINK}`;
