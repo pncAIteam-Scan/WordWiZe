@@ -205,6 +205,8 @@
     .result-pop .result-summary { display:grid; gap:8px; border:1px solid #dbe4ff; background:linear-gradient(135deg, rgba(124,58,237,.10), rgba(14,165,233,.10), rgba(255,183,3,.13)); border-radius:20px; padding:16px; }
     .result-pop .result-summary p { margin:0; color:var(--ink); font-size:18px; line-height:1.35; }
     .result-pop .score-pill { width:max-content; display:inline-flex; align-items:center; gap:8px; border-radius:999px; padding:9px 14px; background:#fff; border:1px solid #dbe4ff; color:var(--brand); font-weight:900; box-shadow:0 8px 20px rgba(76,53,201,.10); }
+
+    .manual-copy { width:100%; min-height:110px; border:1px solid #dbe4ff; border-radius:16px; padding:12px; font:inherit; color:var(--ink); background:#fff; resize:vertical; }
     .result-pop .action-row { margin-top:2px; }
 
     .modal-backdrop { display:none; position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:50; align-items:center; justify-content:center; padding:20px; }
@@ -233,7 +235,7 @@
     .toast b { display:block; margin-bottom:4px; }
     @keyframes pop { from { transform:translateY(8px); opacity:0; } to { transform:none; opacity:1; } }
 
-    /* v0.15 expert hints and give up */
+    /* v0.16 expert hints and give up */
     :root {
       --bg: #fbfcff;
       --ink: #172033;
@@ -494,7 +496,7 @@
       <div class="brand">
         <div>
           <h1><span class="word-part">Word</span><span class="wize-part">WiZe</span></h1>
-          <div class="version">v0.15</div>
+          <div class="version">v0.16</div>
         </div>
       </div>
       <div class="nav-actions">
@@ -808,6 +810,17 @@ function formatTime(sec) {
   const m = Math.floor(sec/60); const s = sec%60;
   return `${m}:${String(s).padStart(2,'0')}`;
 }
+function expertHintRules(level, hintsUsed) {
+  if (!level || level.key !== 'expert' || !hintsUsed) {
+    return { scoreCapRatio: 1, rankCap: 'AI Oracle', rankReferenceRatio: 1 };
+  }
+  const rules = {
+    1: { scoreCapRatio: .75, rankCap: 'Context Clue Collector', rankReferenceRatio: .75 },
+    2: { scoreCapRatio: .62, rankCap: 'AI Agent in Training', rankReferenceRatio: .62 },
+    3: { scoreCapRatio: .50, rankCap: 'AI Agent in Training', rankReferenceRatio: .50 }
+  };
+  return rules[Math.min(hintsUsed, 3)] || rules[3];
+}
 function liveScore() {
   if (!state.current) return 0;
   const level = state.current.level;
@@ -816,21 +829,30 @@ function liveScore() {
   let raw = Math.round((level.baseScore * completionRatio) - (state.elapsedSec * level.timePenalty));
 
   // Expert-only locked-word hints are intentionally expensive.
-  // One hint caps the possible outcome at Context Clue Collector territory.
+  // One hint caps the highest possible rank at Context Clue Collector, but completed puzzles are ranked against the capped score ceiling.
   const hintsUsed = level.key === 'expert' ? (state.current.hintsUsed || 0) : 0;
   if (hintsUsed > 0) {
     raw -= hintsUsed * 300;
-    const caps = { 1: .75, 2: .62, 3: .50 };
-    const cap = Math.round(level.baseScore * (caps[Math.min(hintsUsed, 3)] || .50));
+    const rules = expertHintRules(level, hintsUsed);
+    const cap = Math.round(level.baseScore * rules.scoreCapRatio);
     raw = Math.min(raw, cap);
   }
 
   return Math.max(0, raw);
 }
-function getRank(score, level) {
-  const pct = score / level.baseScore;
+function baseRankFromPct(pct) {
   return pct >= .92 ? 'AI Oracle' : pct >= .82 ? 'Model Whisperer' : pct >= .58 ? 'Context Clue Collector' : pct >= .35 ? 'AI Agent in Training' : 'Lost in the Context Window';
-}function updateMetrics() {
+}
+function lowerRank(rank, capRank) {
+  return RANK_ORDER.indexOf(rank) > RANK_ORDER.indexOf(capRank) ? capRank : rank;
+}
+function getRank(score, level, hintsUsed = 0) {
+  const rules = expertHintRules(level, hintsUsed);
+  const referenceScore = Math.max(1, Math.round(level.baseScore * rules.rankReferenceRatio));
+  const rank = baseRankFromPct(score / referenceScore);
+  return lowerRank(rank, rules.rankCap);
+}
+function updateMetrics() {
   if (!state.current) return;
   document.getElementById('timer').textContent = formatTime(state.elapsedSec);
   const found = state.current.words.filter(w=>w.found).length;
@@ -1108,7 +1130,8 @@ function completePuzzle(gaveUp) {
     return;
   }
   const score = liveScore();
-  const rank = getRank(score, state.current.level);
+  const hintsUsed = state.current.hintsUsed || 0;
+  const rank = getRank(score, state.current.level, hintsUsed);
   stats.completed += 1;
   stats.completedByLevel[state.current.level.key] = (stats.completedByLevel[state.current.level.key] || 0) + 1;
   if (state.current.categoryMode && state.current.categoryMode !== '__MIX__') {
@@ -1122,7 +1145,6 @@ function completePuzzle(gaveUp) {
   saveStatsAndBadges();
   renderWordBank();
   const shareText = `I just played WordWiZe and scored ${score}. Think you can beat me? ${GAME_LINK}`;
-  const hintsUsed = state.current.hintsUsed || 0;
   const hintNote = hintsUsed ? `<p>You used ${hintsUsed} locked-word hint${hintsUsed === 1 ? '' : 's'}, so your Expert score was capped.</p>` : '';
   showModal(rank, `<div class="result-pop"><div class="result-summary"><p>You found all ${state.current.words.length} words in ${formatTime(state.elapsedSec)}.</p>${hintNote}<span class="score-pill">Score: ${score}</span></div><div class="action-row"><button class="btn primary" onclick="copyText(${JSON.stringify(shareText)})">Copy My Score</button><button class="btn" onclick="closeModal(); startGame();">Next Puzzle</button><button class="btn ghost" onclick="closeModal(); showScreen('titleScreen');">Return to Title</button></div></div>`);
 }
@@ -1134,14 +1156,44 @@ function saveStatsAndBadges() {
     if (!before.has(id)) { const b=BADGES.find(x=>x.id===id); toast('Badge unlocked', `${b.emoji} ${b.name} — ${b.desc}`); }
   }
 }
-function copyText(text) {
-  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(()=>toast('Copied', 'Your WordWiZe share text is ready.')).catch(()=>fallbackCopy(text));
-  else fallbackCopy(text);
+async function copyText(text) {
+  const value = String(text || '');
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(value);
+      toast('Copied', 'Your WordWiZe share text is ready.');
+      return;
+    }
+  } catch (err) {
+    // Fall through to the older copy method below.
+  }
+  fallbackCopy(value);
 }
 function fallbackCopy(text) {
-  const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select();
-  try { document.execCommand('copy'); toast('Copied', 'Your WordWiZe share text is ready.'); } catch { toast('Copy failed', 'You can manually copy the text from the result card.'); }
+  const ta=document.createElement('textarea');
+  ta.value=text;
+  ta.setAttribute('readonly','');
+  ta.style.position='fixed';
+  ta.style.top='0';
+  ta.style.left='0';
+  ta.style.width='1px';
+  ta.style.height='1px';
+  ta.style.opacity='0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  ta.setSelectionRange(0, ta.value.length);
+  let copied = false;
+  try { copied = document.execCommand('copy'); } catch (err) { copied = false; }
   ta.remove();
+  if (copied) {
+    toast('Copied', 'Your WordWiZe share text is ready.');
+  } else {
+    showManualCopy(text);
+  }
+}
+function showManualCopy(text) {
+  showModal('Copy Your Score', `<p>Copy did not work automatically, so here is the share text:</p><textarea class="manual-copy" readonly>${escapeHtml(text)}</textarea><div class="action-row"><button class="btn primary" onclick="closeModal()">Done</button></div>`);
 }
 function toast(title, msg) {
   const stack=document.getElementById('toastStack');
