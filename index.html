@@ -235,7 +235,7 @@
     .toast b { display:block; margin-bottom:4px; }
     @keyframes pop { from { transform:translateY(8px); opacity:0; } to { transform:none; opacity:1; } }
 
-    /* v0.18 workday streak notes */
+    /* v0.19 share copy update */
     :root {
       --bg: #fbfcff;
       --ink: #172033;
@@ -496,7 +496,7 @@
       <div class="brand">
         <div>
           <h1><span class="word-part">Word</span><span class="wize-part">WiZe</span></h1>
-          <div class="version">v0.18</div>
+          <div class="version">v0.19</div>
         </div>
       </div>
       <div class="nav-actions">
@@ -1159,7 +1159,7 @@ function completePuzzle(gaveUp) {
   updateStreakOnCompletion(stats);
   saveStatsAndBadges();
   renderWordBank();
-  state.lastScoreShareText = `I just played WordWiZe and scored ${score}. Think you can beat me? ${GAME_LINK}`;
+  state.lastScoreShareText = `${rank}: I just played WordWiZe and scored ${score}. Think you can beat me? ${GAME_LINK}`;
   const hintNote = hintsUsed ? `<p>You used ${hintsUsed} locked-word hint${hintsUsed === 1 ? '' : 's'}, so your Expert score was capped.</p>` : '';
   showModal(rank, `<div class="result-pop"><div class="result-summary"><p>You found all ${state.current.words.length} words in ${formatTime(state.elapsedSec)}.</p>${hintNote}<span class="score-pill">Score: ${score}</span></div><div class="action-row"><button class="btn primary" onclick="copyLatestScore()">Copy My Score</button><button class="btn" onclick="closeModal(); startGame();">Next Puzzle</button><button class="btn ghost" onclick="closeModal(); showScreen('titleScreen');">Return to Title</button></div></div>`);
 }
@@ -1228,7 +1228,7 @@ function copyTopStats() {
   copyText(topStatsShareText());
 }
 function copyLatestScore() {
-  const text = state.lastScoreShareText || `I just played WordWiZe and scored ${stats.bestScore}. Think you can beat me? ${GAME_LINK}`;
+  const text = state.lastScoreShareText || `${stats.bestRank || 'WordWiZe Player'}: I just played WordWiZe and scored ${stats.bestScore}. Think you can beat me? ${GAME_LINK}`;
   copyText(text);
 }
 function showStats() {
